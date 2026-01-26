@@ -114,13 +114,13 @@ int main ()
 				future_note++;
 				timediffrence = 0;
 			}
+
+			if (IsKeyPressed(KEY_D)) {std::cout << "Key pressed: D" << std::endl;}
+        	if (IsKeyPressed(KEY_F)) {std::cout << "Key pressed: F" << std::endl;}
+        	if (IsKeyPressed(KEY_J)) {std::cout << "Key pressed: J" << std::endl;}
+        	if (IsKeyPressed(KEY_K)) {std::cout << "Key pressed: K" << std::endl;}
 		}
-
-		if (IsKeyPressed(KEY_D)) {std::cout << "Key pressed: D" << std::endl;}
-        if (IsKeyPressed(KEY_F)) {std::cout << "Key pressed: F" << std::endl;}
-        if (IsKeyPressed(KEY_J)) {std::cout << "Key pressed: J" << std::endl;}
-        if (IsKeyPressed(KEY_K)) {std::cout << "Key pressed: K" << std::endl;}
-
+		
 		EndDrawing();
 	}
 
