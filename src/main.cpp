@@ -1,134 +1,137 @@
 #include "raylib.h"
 #include "resource_dir.h"
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
-#include <cstdlib>
 
 #define NUM_TEXTURES 4
 #define scrollspeed 1.5 // how much pixels per second
 #define receptor_y 950
+#define receptor_x 500
 
-struct note_custom{
-	int time; // in ms
-	int lane; // remember lane 500 + (128*lane)w
-	float y;
-	bool enabled;
-	bool hit;
+struct note_custom {
+  int time; // in ms
+  int lane; // remember lane 500 + (128*lane)w
+  float y;
+  bool enabled;
+  bool hit;
 };
 
-bool comp(note_custom a, note_custom b)
-{
-    return a.time < b.time;
+std::vector<note_custom> notes;
+int future_note{ 0 };
+Texture2D textures_lit[NUM_TEXTURES] = {0};
+Texture judgement = { 0 };
+
+bool comp(note_custom a, note_custom b) { return a.time < b.time; }
+
+void hit(int lane){
+  for (int i{future_note}; i < notes.size(); i++) {
+      note_custom &current_note = notes[i];
+      double timediffrence = (current_note.time - (GetTime() * 1000)) * -1;
+      DrawTexture(textures_lit[i], receptor_x + (128*lane), receptor_y, WHITE);
+      if (current_note.lane == lane){
+        if (timediffrence <= 500 && timediffrence >= -500){
+          DrawTexture(judgement, receptor_x*256, 800, WHITE);
+          std::cout << "Hit note! on lane: " << lane << std::endl;
+          current_note.hit = true;
+          future_note++;
+          break;
+        }
+      }
+  }
 }
 
-int main ()
-{
-	InitWindow(1920, 1080, "Hello Raylib");
-	SearchAndSetResourceDir("resources");
-	ToggleFullscreen();
-	SetTargetFPS(250);
 
-	std::vector<note_custom> notes;
-	int future_note { 0 }; // public bcuz if a note is passed no need to draaw it anymore
+int main() {
+  InitWindow(1920, 1080, "Hello Raylib");
+  SearchAndSetResourceDir("resources");
+  ToggleFullscreen();
+  SetTargetFPS(250);
 
-	Image arrow = LoadImage("snapped_arrows/00.png");
-	Image arrow_rotated_90 = LoadImage("snapped_arrows/00.png");
-	Image arrow_rotated_180 = LoadImage("snapped_arrows/00.png");
-	Image arrow_rotated_negative_90 = LoadImage("snapped_arrows/00.png");
+  std::vector<int> rotations;
+  rotations = std::vector<int>{90, 0, 180, -90};
+  Texture2D textures[NUM_TEXTURES] = {0};
+  Texture2D textures_arrow[NUM_TEXTURES] = {0};
 
-	Image receptor_unlit = LoadImage("receptor_unlit.png");
-	Image receptor_unlit1 = LoadImage("receptor_unlit.png");
-	Image receptor_unlit2 = LoadImage("receptor_unlit.png");
-	Image receptor_unlit3 = LoadImage("receptor_unlit.png");
+  for (int i { 0 }; i < NUM_TEXTURES; i++) {
+    Image arrow = LoadImage("snapped_arrows/00.png");
+    Image receptor_unlit = LoadImage("receptor_unlit.png");
+    Image receptor_lit = LoadImage("receptor_lit.png");
+    ImageRotate(&receptor_unlit, rotations[i]);
+    ImageRotate(&receptor_lit, rotations[i]);
+    ImageRotate(&arrow, rotations[i]);
+    textures[i] = LoadTextureFromImage(receptor_unlit);
+    textures_arrow[i] = LoadTextureFromImage(arrow);
+    textures_lit[i] = LoadTextureFromImage(receptor_lit);
+  }
 
-	Image receptor_lit = LoadImage("receptor_lit.png");
-	Image receptor_lit1 = LoadImage("receptor_lit.png");
-	Image receptor_lit2 = LoadImage("receptor_lit.png");
-	Image receptor_lit3 = LoadImage("receptor_lit.png");
+  Image judgement_img = LoadImage("judgements/00.png");
+  judgement = LoadTextureFromImage(judgement_img);
 
-	ImageRotate(&receptor_unlit1, 90);
-	ImageRotate(&receptor_unlit2, -90);
-	ImageRotate(&receptor_unlit3, 180);
+  for (int i{0}; i <= 10; i++) {
+    note_custom new_note;
+    new_note.time = rand() % 3000 + 3000;
+    new_note.lane = rand() % 4;
+    new_note.y = 0;
+    new_note.enabled = false;
+    new_note.hit = false;
+    notes.push_back(new_note);
+  }
 
-	ImageRotate(&receptor_lit1, 90);
-	ImageRotate(&receptor_lit2, -90);
-	ImageRotate(&receptor_lit3, 180);
+  std::sort(notes.begin(), notes.end(), comp);
 
-	ImageRotate(&arrow_rotated_90, 90);
-	ImageRotate(&arrow_rotated_negative_90, -90);
-	ImageRotate(&arrow_rotated_180, 180);
+  while (!WindowShouldClose()) {
+    BeginDrawing();
+    ClearBackground(BLACK);
 
-	Texture2D textures[NUM_TEXTURES] = { 0 };
-	Texture2D textures_lit[NUM_TEXTURES] = { 0 };
-	Texture2D textures_arrow[NUM_TEXTURES] = { 0 };
+    for (int i { 0 }; i < NUM_TEXTURES; i++) {
+      DrawTexture(textures[i], receptor_x + (128*i), receptor_y, GRAY);
+    }
 
-    textures[0] = LoadTextureFromImage(receptor_unlit1); 
-    textures[1] = LoadTextureFromImage(receptor_unlit);  
-    textures[2] = LoadTextureFromImage(receptor_unlit3); 
-	textures[3] = LoadTextureFromImage(receptor_unlit2);
+    DrawFPS(10, 10);
 
-    textures_arrow[0] = LoadTextureFromImage(arrow_rotated_90); 
-    textures_arrow[1] = LoadTextureFromImage(arrow);  
-    textures_arrow[2] = LoadTextureFromImage(arrow_rotated_180); 
-	textures_arrow[3] = LoadTextureFromImage(arrow_rotated_negative_90); 
+    for (int i{future_note}; i < notes.size(); i++) {
+      note_custom &current_note = notes[i];
+      double test = GetTime() * 1000;
+      double timediffrence = (current_note.time - (GetTime() * 1000)) * -1;
 
-	// each texture is 128px high and wide
+      if (current_note.hit == false) {
+        DrawTexture(textures_arrow[current_note.lane],
+                    500 + (128 * current_note.lane), current_note.y, WHITE);
+        current_note.y = (timediffrence + 950) * scrollspeed;
+      }
 
-	for (int i { 0 }; i <= 100; i++){
-		note_custom new_note;
-		new_note.time = rand() % 3000 + 3000;
-		new_note.lane = rand() % 4;
-		new_note.y = 0;
-		new_note.enabled = false;
-		new_note.hit = false;
-		notes.push_back(new_note);
-	}
+      if (timediffrence >= 120) {
+        current_note.hit = true;
+        future_note++;
+        timediffrence = 0;
+      }
 
-	std::sort(notes.begin(), notes.end(), comp);
+      if (IsKeyPressed(KEY_D)) {
+        hit(0);
+      }
+      if (IsKeyPressed(KEY_F)) {
+        hit(1);
+      }
+      if (IsKeyPressed(KEY_J)) {
+        hit(2);
+      }
+      if (IsKeyPressed(KEY_K)) {
+        hit(3);
+      }
+    }
+    
+    EndDrawing();
+  }
 
-	while (!WindowShouldClose())
-	{
-		BeginDrawing();
-		ClearBackground(BLACK);
+  for (int i = 0; i < NUM_TEXTURES; i++)
+    UnloadTexture(textures[i]);
+  for (int i = 0; i < NUM_TEXTURES; i++)
+    UnloadTexture(textures_arrow[i]);
+  for (int i = 0; i < NUM_TEXTURES; i++)
+    UnloadTexture(textures_lit[i]);
 
-        DrawTexture(textures[0], 500, receptor_y, GRAY);
-		DrawTexture(textures[1], 500+128, receptor_y, GRAY);
-		DrawTexture(textures[2], 500+128+128, receptor_y, GRAY);
-		DrawTexture(textures[3], 500+128+128+128, receptor_y, GRAY);
-
-		DrawFPS(10, 10);
-
-		for (int i { future_note }; i < notes.size(); i++) {
-			note_custom& current_note = notes[i]; 
-			double test = GetTime() *1000;
-			double timediffrence = (current_note.time - (GetTime() * 1000)) *-1;
-
-			if (current_note.hit == false){
-				DrawTexture(textures_arrow[current_note.lane], 500+(128*current_note.lane), current_note.y, WHITE);
-				current_note.y = (timediffrence + 950) *scrollspeed;
-			}
-
-			if (timediffrence >= 100){
-				current_note.hit = true;
-				future_note++;
-				timediffrence = 0;
-			}
-
-			if (IsKeyPressed(KEY_D)) {std::cout << "Key pressed: D" << std::endl;}
-        	if (IsKeyPressed(KEY_F)) {std::cout << "Key pressed: F" << std::endl;}
-        	if (IsKeyPressed(KEY_J)) {std::cout << "Key pressed: J" << std::endl;}
-        	if (IsKeyPressed(KEY_K)) {std::cout << "Key pressed: K" << std::endl;}
-		}
-		
-		EndDrawing();
-	}
-
-	for (int i = 0; i < NUM_TEXTURES; i++) UnloadTexture(textures[i]);
-	for (int i = 0; i < NUM_TEXTURES; i++) UnloadTexture(textures_arrow[i]);
-	for (int i = 0; i < NUM_TEXTURES; i++) UnloadTexture(textures_lit[i]);
-	//UnloadTexture(receptor_lit);
-
-	CloseWindow();
-	return 0;
+  CloseWindow();
+  return 0;
 }
