@@ -20,6 +20,9 @@ struct note_custom {
 
 std::vector<note_custom> notes;
 int future_note{ 0 };
+int last_hit_time{ 0 };
+int last_key_hit_time {0};
+int last_key_hit_lane {0};
 Texture2D textures_lit[NUM_TEXTURES] = {0};
 Texture judgement = { 0 };
 
@@ -29,15 +32,16 @@ void hit(int lane){
   for (int i{future_note}; i < notes.size(); i++) {
       note_custom &current_note = notes[i];
       double timediffrence = (current_note.time - (GetTime() * 1000)) * -1;
-      DrawTexture(textures_lit[i], receptor_x + (128*lane), receptor_y, WHITE);
+      last_key_hit_time = GetTime()*1000;
+      last_key_hit_lane = lane;
       if (current_note.lane == lane){
         if (timediffrence <= 500 && timediffrence >= -500){
-          DrawTexture(judgement, receptor_x*256, 800, WHITE);
-          std::cout << "Hit note! on lane: " << lane << std::endl;
           current_note.hit = true;
           future_note++;
+          last_hit_time = GetTime()*1000;
           break;
         }
+        break;
       }
   }
 }
@@ -53,11 +57,11 @@ int main() {
   rotations = std::vector<int>{90, 0, 180, -90};
   Texture2D textures[NUM_TEXTURES] = {0};
   Texture2D textures_arrow[NUM_TEXTURES] = {0};
+  Image arrow = LoadImage("snapped_arrows/00.png");
+  Image receptor_unlit = LoadImage("receptor_unlit.png");
+  Image receptor_lit = LoadImage("receptor_lit.png");
 
   for (int i { 0 }; i < NUM_TEXTURES; i++) {
-    Image arrow = LoadImage("snapped_arrows/00.png");
-    Image receptor_unlit = LoadImage("receptor_unlit.png");
-    Image receptor_lit = LoadImage("receptor_lit.png");
     ImageRotate(&receptor_unlit, rotations[i]);
     ImageRotate(&receptor_lit, rotations[i]);
     ImageRotate(&arrow, rotations[i]);
@@ -66,10 +70,14 @@ int main() {
     textures_lit[i] = LoadTextureFromImage(receptor_lit);
   }
 
+  UnloadImage(arrow);
+  UnloadImage(receptor_lit);
+  UnloadImage(receptor_unlit);
+
   Image judgement_img = LoadImage("judgements/00.png");
   judgement = LoadTextureFromImage(judgement_img);
 
-  for (int i{0}; i <= 10; i++) {
+  for (int i{0}; i <= 100; i++) {
     note_custom new_note;
     new_note.time = rand() % 3000 + 3000;
     new_note.lane = rand() % 4;
@@ -107,8 +115,20 @@ int main() {
         future_note++;
         timediffrence = 0;
       }
+    }
 
-      if (IsKeyPressed(KEY_D)) {
+    if ((last_hit_time +100) >= GetTime()*1000){
+      DrawTexture(judgement, receptor_x, 300, WHITE);
+    }
+    
+    if ((last_key_hit_time +100) >= GetTime()*1000){
+        DrawTexture(textures_lit[last_key_hit_lane], receptor_x + (128*last_key_hit_lane), receptor_y, WHITE);
+    }
+
+    EndDrawing();
+
+    if (IsKeyPressed(KEY_D)) {
+        
         hit(0);
       }
       if (IsKeyPressed(KEY_F)) {
@@ -120,9 +140,6 @@ int main() {
       if (IsKeyPressed(KEY_K)) {
         hit(3);
       }
-    }
-    
-    EndDrawing();
   }
 
   for (int i = 0; i < NUM_TEXTURES; i++)
