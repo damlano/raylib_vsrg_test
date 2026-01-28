@@ -18,6 +18,20 @@ struct note_custom {
   bool hit;
 };
 
+
+/*
+todo:
+add marv/perf/great/boo/miss hit timings as variables
+switch/case the timings
+load all images for them 
+add hit to the correct counter 
+double accuracy = (305*marv + 300*perf + 200*great + 50*boo) / 305*(marv+perf+great+boo)
+
+
+improvements:
+make hit lightning maybe stay longer/shorter and make it multiple keys
+*/ 
+
 std::vector<note_custom> notes;
 int future_note{ 0 };
 int last_hit_time{ 0 };
@@ -57,22 +71,21 @@ int main() {
   rotations = std::vector<int>{90, 0, 180, -90};
   Texture2D textures[NUM_TEXTURES] = {0};
   Texture2D textures_arrow[NUM_TEXTURES] = {0};
-  Image arrow = LoadImage("snapped_arrows/00.png");
-  Image receptor_unlit = LoadImage("receptor_unlit.png");
-  Image receptor_lit = LoadImage("receptor_lit.png");
-
+  
   for (int i { 0 }; i < NUM_TEXTURES; i++) {
+    Image arrow = LoadImage("snapped_arrows/00.png");
+    Image receptor_unlit = LoadImage("receptor_unlit.png");
+    Image receptor_lit = LoadImage("receptor_lit.png");
     ImageRotate(&receptor_unlit, rotations[i]);
     ImageRotate(&receptor_lit, rotations[i]);
     ImageRotate(&arrow, rotations[i]);
     textures[i] = LoadTextureFromImage(receptor_unlit);
     textures_arrow[i] = LoadTextureFromImage(arrow);
     textures_lit[i] = LoadTextureFromImage(receptor_lit);
+    UnloadImage(arrow);
+    UnloadImage(receptor_lit);
+    UnloadImage(receptor_unlit);
   }
-
-  UnloadImage(arrow);
-  UnloadImage(receptor_lit);
-  UnloadImage(receptor_unlit);
 
   Image judgement_img = LoadImage("judgements/00.png");
   judgement = LoadTextureFromImage(judgement_img);
