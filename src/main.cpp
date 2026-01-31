@@ -3,10 +3,11 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <ostream>
 #include <vector>
 
 #define NUM_TEXTURES 4
-#define scrollspeed 1.5 // how much pixels per second
+#define scrollspeed 1 // how much pixels per second
 #define receptor_y 950
 #define receptor_x 500
 
@@ -14,33 +15,39 @@ struct note_custom {
   int time; // in ms
   int lane; // remember lane 500 + (128*lane)w
   float y;
-  bool enabled;
   bool hit;
 };
 
 
 /*
 todo:
-add marv/perf/great/boo/miss hit timings as variables
-switch/case the timings
-load all images for them 
-add hit to the correct counter 
-double accuracy = (305*marv + 300*perf + 200*great + 50*boo) / 305*(marv+perf+great+boo)
-
-
-improvements:
-make hit lightning maybe stay longer/shorter and make it multiple keys
+make hit lightning multiple keys at once not only 1 key it looks cursed!
+fix scrollspeed (idfk how to do this mannnn)
 */ 
 
 std::vector<note_custom> notes;
 int future_note{ 0 };
-int last_hit_time{ 0 };
+int last_judge_time{ 0 };
+int last_hit_type{0};
 int last_key_hit_time {0};
 int last_key_hit_lane {0};
-Texture2D textures_lit[NUM_TEXTURES] = {0};
-Texture judgement = { 0 };
+Texture2D textures_arrows_lit[NUM_TEXTURES] = {0};
+
+Texture2D judgement_texture[5] = { 0 };
+int timings[5] {100, 200, 300, 400,600};
+int cur_judgements[5] {0,0,0,0,0};
+double accuracy {0};
+// from left to right: marv/perf/great/boo/miss
 
 bool comp(note_custom a, note_custom b) { return a.time < b.time; }
+
+void set_hit(note_custom current_note, int hit_type){
+    cur_judgements[hit_type] += 1;
+    current_note.hit = true;
+    future_note++;
+    last_judge_time = GetTime()*1000;
+    last_hit_type = hit_type;
+}
 
 void hit(int lane){
   for (int i{future_note}; i < notes.size(); i++) {
@@ -49,11 +56,26 @@ void hit(int lane){
       last_key_hit_time = GetTime()*1000;
       last_key_hit_lane = lane;
       if (current_note.lane == lane){
-        if (timediffrence <= 500 && timediffrence >= -500){
-          current_note.hit = true;
-          future_note++;
-          last_hit_time = GetTime()*1000;
-          break;
+        std::cout << timediffrence << std::endl;
+        if (timediffrence <= timings[0] && timediffrence >= timings[0]*-1){
+            set_hit(current_note, 0);
+            break;
+        }
+        else if (timediffrence <= timings[1] && timediffrence >= timings[1]*-1){
+            set_hit(current_note, 1);
+            break;
+        }
+        else if (timediffrence <= timings[2] && timediffrence >= timings[2]*-1){
+            set_hit(current_note, 2);
+            break;
+        }
+        else if (timediffrence <= timings[3] && timediffrence >= timings[3]*-1){
+            set_hit(current_note, 3);
+            break;
+        }
+        else if (timediffrence <= timings[4] && timediffrence >= timings[4]*-1){
+            set_hit(current_note, 4);
+            break;
         }
         break;
       }
@@ -81,21 +103,31 @@ int main() {
     ImageRotate(&arrow, rotations[i]);
     textures[i] = LoadTextureFromImage(receptor_unlit);
     textures_arrow[i] = LoadTextureFromImage(arrow);
-    textures_lit[i] = LoadTextureFromImage(receptor_lit);
+    textures_arrows_lit[i] = LoadTextureFromImage(receptor_lit);
     UnloadImage(arrow);
     UnloadImage(receptor_lit);
     UnloadImage(receptor_unlit);
   }
 
+  // i should clean this entire judgement image spam up and use string formatting i know.... i wasnt aware of this before alright!
   Image judgement_img = LoadImage("judgements/00.png");
-  judgement = LoadTextureFromImage(judgement_img);
+  Image judgement_img1 = LoadImage("judgements/01.png");
+  Image judgement_img2 = LoadImage("judgements/02.png");
+  Image judgement_img3 = LoadImage("judgements/04.png");
+  Image judgement_img4 = LoadImage("judgements/05.png");
 
-  for (int i{0}; i <= 100; i++) {
+  Image judgement_images[5]{judgement_img, judgement_img1,judgement_img2, judgement_img3,judgement_img4};
+
+  for (int i { 0 }; i < 5; i++) {
+    judgement_texture[i] = LoadTextureFromImage(judgement_images[i]);
+    UnloadImage(judgement_images[i]);
+  }
+
+  for (int i{0}; i <= 10; i++) {
     note_custom new_note;
     new_note.time = rand() % 3000 + 3000;
     new_note.lane = rand() % 4;
     new_note.y = 0;
-    new_note.enabled = false;
     new_note.hit = false;
     notes.push_back(new_note);
   }
@@ -120,22 +152,25 @@ int main() {
       if (current_note.hit == false) {
         DrawTexture(textures_arrow[current_note.lane],
                     500 + (128 * current_note.lane), current_note.y, WHITE);
-        current_note.y = (timediffrence + 950) * scrollspeed;
+        current_note.y = (timediffrence + receptor_y);
       }
 
-      if (timediffrence >= 120) {
+      if (timediffrence >= timings[4]) {
         current_note.hit = true;
         future_note++;
+        cur_judgements[4] += 1;
+        last_judge_time = GetTime()*1000;
+        last_hit_type = 4;
         timediffrence = 0;
       }
     }
 
-    if ((last_hit_time +100) >= GetTime()*1000){
-      DrawTexture(judgement, receptor_x, 300, WHITE);
+    if ((last_judge_time +100) >= GetTime()*1000){
+      DrawTexture(judgement_texture[last_hit_type], receptor_x, 300, WHITE);
     }
     
     if ((last_key_hit_time +100) >= GetTime()*1000){
-        DrawTexture(textures_lit[last_key_hit_lane], receptor_x + (128*last_key_hit_lane), receptor_y, WHITE);
+        DrawTexture(textures_arrows_lit[last_key_hit_lane], receptor_x + (128*last_key_hit_lane), receptor_y, WHITE);
     }
 
     EndDrawing();
@@ -153,6 +188,13 @@ int main() {
       if (IsKeyPressed(KEY_K)) {
         hit(3);
       }
+      int total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
+      if (total_hits > 0){
+        accuracy = (305*cur_judgements[0] + 300*cur_judgements[1] + 200*cur_judgements[2] + 50*cur_judgements[3]) / (305*total_hits) *100;
+      } else {
+        accuracy= 100.0; 
+      }
+      DrawText(TextFormat("%.2f", accuracy), receptor_x, 10, 18, RED);
   }
 
   for (int i = 0; i < NUM_TEXTURES; i++)
@@ -160,7 +202,9 @@ int main() {
   for (int i = 0; i < NUM_TEXTURES; i++)
     UnloadTexture(textures_arrow[i]);
   for (int i = 0; i < NUM_TEXTURES; i++)
-    UnloadTexture(textures_lit[i]);
+    UnloadTexture(textures_arrows_lit[i]);
+  for (int i = 0; i < NUM_TEXTURES; i++)
+    UnloadTexture(judgement_texture[i]);
 
   CloseWindow();
   return 0;
