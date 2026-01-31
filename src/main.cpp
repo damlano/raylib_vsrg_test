@@ -7,7 +7,7 @@
 #include <vector>
 
 #define NUM_TEXTURES 4
-#define scrollspeed 1 // how much pixels per second
+#define scrollspeed 1
 #define receptor_y 950
 #define receptor_x 500
 
@@ -161,6 +161,10 @@ int main() {
         cur_judgements[4] += 1;
         last_judge_time = GetTime()*1000;
         last_hit_type = 4;
+        timediffrence = 0;
+      }
+
+      if (current_note.time <= GetTime()*1000){
         timediffrence = 0;
       }
     }
