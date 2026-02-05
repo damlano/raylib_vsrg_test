@@ -144,27 +144,32 @@ int main() {
 
     DrawFPS(10, 10);
 
+    double currentTime = GetTime()*1000;
+
     for (int i{future_note}; i < notes.size(); i++) {
+      currentTime = GetTime()*1000;
       note_custom &current_note = notes[i];
-      double test = GetTime() * 1000;
-      double timediffrence = (current_note.time - (GetTime() * 1000)) * -1;
+      double noteDuration = current_note.time - currentTime;
+      double timediffrence = (current_note.time - currentTime) * -1;
 
       if (current_note.hit == false) {
-        DrawTexture(textures_arrow[current_note.lane],
+        current_note.y = receptor_y - (noteDuration * scrollspeed);
+        if(current_note.y > -100 && current_note.y < 1080) {
+          DrawTexture(textures_arrow[current_note.lane],
                     500 + (128 * current_note.lane), current_note.y, WHITE);
-        current_note.y = (timediffrence + receptor_y);
+          }
       }
 
-      if (timediffrence >= timings[4]) {
+      if (timediffrence >= timings[4] && current_note.hit == false) {
         current_note.hit = true;
         future_note++;
         cur_judgements[4] += 1;
-        last_judge_time = GetTime()*1000;
+        last_judge_time = currentTime;
         last_hit_type = 4;
         timediffrence = 0;
       }
 
-      if (current_note.time <= GetTime()*1000){
+      if (current_note.time <= currentTime){
         timediffrence = 0;
       }
     }
@@ -192,7 +197,7 @@ int main() {
       if (IsKeyPressed(KEY_K)) {
         hit(3);
       }
-      int total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
+      float total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
       if (total_hits > 0){
         accuracy = (305*cur_judgements[0] + 300*cur_judgements[1] + 200*cur_judgements[2] + 50*cur_judgements[3]) / (305*total_hits) *100;
       } else {
