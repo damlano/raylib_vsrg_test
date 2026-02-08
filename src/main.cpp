@@ -6,6 +6,8 @@
 #include <ostream>
 #include <vector>
 
+// big to do: clal the clock less bcuz this is just eating performance probably LMFAO
+
 #define NUM_TEXTURES 4
 #define scrollspeed 1
 #define receptor_y 950
@@ -18,11 +20,44 @@ struct note_custom {
   bool hit;
 };
 
+Music song;
+
+float GetCmodY(note_custom& current_note){ // this is stolen from etterna (i jsut changed func name and some variables alright LOL)
+		float m_fScrollBPM {1255};
+    float m_fTimeSpacing {1};
+		float ARROW_SPACING {64};
+		float g_fVisualDelaySeconds {0};
+    float fYOffset{0};
+		float musicrate {1};
+    //float scale{1}; // scale of the receptors
+
+		float fPositionSeconds = GetMusicTimePlayed(song);
+		float m_fMusicSecondsVisible = fPositionSeconds - (g_fVisualDelaySeconds * musicrate);
+
+		float fSongSeconds = m_fMusicSecondsVisible;
+    float fNoteSeconds = current_note.time/1000.f;
+		float fSecondsUntilStep = fNoteSeconds - fSongSeconds;
+		float fBPM = m_fScrollBPM;
+		float fBPS = fBPM / 60.f / musicrate;
+		float fYOffsetTimeSpacing = fSecondsUntilStep * fBPS;
+
+		fYOffset += fYOffsetTimeSpacing * m_fTimeSpacing;
+		fYOffset *= ARROW_SPACING;
+
+		if (fYOffset < 0) {
+			return ((fYOffset *= scrollspeed)- receptor_y) *-1;
+		}
+
+		return ((fYOffset *= scrollspeed)- receptor_y) *-1;
+}
+
 
 /*
 todo:
 make hit lightning multiple keys at once not only 1 key it looks cursed!
-fix scrollspeed (idfk how to do this mannnn)
+finish SMloader (and use delia.sm as test bcuz good song idc)
+
+make the *-1 a variable to allow both up and downscroll
 */ 
 
 std::vector<note_custom> notes;
@@ -34,29 +69,28 @@ int last_key_hit_lane {0};
 Texture2D textures_arrows_lit[NUM_TEXTURES] = {0};
 
 Texture2D judgement_texture[5] = { 0 };
-int timings[5] {100, 200, 300, 400,600};
+int timings[5] {17, 200, 300, 400,600};
 int cur_judgements[5] {0,0,0,0,0};
 double accuracy {0};
 // from left to right: marv/perf/great/boo/miss
 
 bool comp(note_custom a, note_custom b) { return a.time < b.time; }
 
-void set_hit(note_custom current_note, int hit_type){
+void set_hit(note_custom& current_note, int hit_type){
     cur_judgements[hit_type] += 1;
     current_note.hit = true;
     future_note++;
-    last_judge_time = GetTime()*1000;
+    last_judge_time = GetMusicTimePlayed(song)*1000;
     last_hit_type = hit_type;
 }
 
 void hit(int lane){
   for (int i{future_note}; i < notes.size(); i++) {
       note_custom &current_note = notes[i];
-      double timediffrence = (current_note.time - (GetTime() * 1000)) * -1;
-      last_key_hit_time = GetTime()*1000;
+      double timediffrence = (current_note.time - (GetMusicTimePlayed(song) * 1000)) * -1;
+      last_key_hit_time = GetMusicTimePlayed(song)*1000;
       last_key_hit_lane = lane;
       if (current_note.lane == lane){
-        std::cout << timediffrence << std::endl;
         if (timediffrence <= timings[0] && timediffrence >= timings[0]*-1){
             set_hit(current_note, 0);
             break;
@@ -84,10 +118,11 @@ void hit(int lane){
 
 
 int main() {
-  InitWindow(1920, 1080, "Hello Raylib");
+  InitWindow(1920, 1080, "raylib vsrg test"); // my dumbass didnt change the title OOPSIE
   SearchAndSetResourceDir("resources");
   ToggleFullscreen();
   SetTargetFPS(250);
+  InitAudioDevice();
 
   std::vector<int> rotations;
   rotations = std::vector<int>{90, 0, 180, -90};
@@ -134,6 +169,10 @@ int main() {
 
   std::sort(notes.begin(), notes.end(), comp);
 
+  song = LoadMusicStream("delia.ogg");
+  std::cout << IsMusicValid(song);
+  PlayMusicStream(song);
+
   while (!WindowShouldClose()) {
     BeginDrawing();
     ClearBackground(BLACK);
@@ -144,16 +183,16 @@ int main() {
 
     DrawFPS(10, 10);
 
-    double currentTime = GetTime()*1000;
+    double currentTime = GetMusicTimePlayed(song)*1000;    
 
     for (int i{future_note}; i < notes.size(); i++) {
-      currentTime = GetTime()*1000;
+      currentTime = GetMusicTimePlayed(song)*1000;
       note_custom &current_note = notes[i];
       double noteDuration = current_note.time - currentTime;
       double timediffrence = (current_note.time - currentTime) * -1;
 
       if (current_note.hit == false) {
-        current_note.y = receptor_y - (noteDuration * scrollspeed);
+        current_note.y = GetCmodY(current_note);
         if(current_note.y > -100 && current_note.y < 1080) {
           DrawTexture(textures_arrow[current_note.lane],
                     500 + (128 * current_note.lane), current_note.y, WHITE);
@@ -174,14 +213,14 @@ int main() {
       }
     }
 
-    if ((last_judge_time +100) >= GetTime()*1000){
+    if (last_judge_time != 0 && (last_judge_time +100) >= GetMusicTimePlayed(song)*1000){
       DrawTexture(judgement_texture[last_hit_type], receptor_x, 300, WHITE);
     }
     
-    if ((last_key_hit_time +100) >= GetTime()*1000){
+    if (last_key_hit_time != 0 && (last_key_hit_time +100) >= GetMusicTimePlayed(song)*1000){
         DrawTexture(textures_arrows_lit[last_key_hit_lane], receptor_x + (128*last_key_hit_lane), receptor_y, WHITE);
     }
-
+    UpdateMusicStream(song);
     EndDrawing();
 
     if (IsKeyPressed(KEY_D)) {
@@ -214,6 +253,9 @@ int main() {
     UnloadTexture(textures_arrows_lit[i]);
   for (int i = 0; i < NUM_TEXTURES; i++)
     UnloadTexture(judgement_texture[i]);
+
+  UnloadMusicStream(song);
+  CloseAudioDevice();
 
   CloseWindow();
   return 0;
