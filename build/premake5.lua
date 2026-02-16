@@ -210,7 +210,7 @@ if (downloadRaylib) then
         links {"raylib"}
 
         cdialect "C17"
-        cppdialect "C++17"
+        cppdialect "C++23"
 
         includedirs {raylib_dir .. "/src" }
 
