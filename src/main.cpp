@@ -1,10 +1,12 @@
 #include "raylib.h"
 #include "resource_dir.h"
 #include <algorithm>
-#include <cstdlib>
 #include <iostream>
 #include <ostream>
 #include <vector>
+#include "smloader.h"
+
+using namespace std;
 
 // big to do: clal the clock less bcuz this is just eating performance probably LMFAO
 
@@ -12,13 +14,8 @@
 #define scrollspeed 1
 #define receptor_y 950
 #define receptor_x 500
-
-struct note_custom {
-  int time; // in ms
-  int lane; // remember lane 500 + (128*lane)w
-  float y;
-  bool hit;
-};
+#define SNAP_ARROWS 9
+#define useautoplay false
 
 Music song;
 
@@ -55,12 +52,10 @@ float GetCmodY(note_custom& current_note){ // this is stolen from etterna (i jsu
 /*
 todo:
 make hit lightning multiple keys at once not only 1 key it looks cursed!
-finish SMloader (and use delia.sm as test bcuz good song idc)
-
 make the *-1 a variable to allow both up and downscroll
 */ 
 
-std::vector<note_custom> notes;
+vector<note_custom> notes;
 int future_note{ 0 };
 int last_judge_time{ 0 };
 int last_hit_type{0};
@@ -118,28 +113,39 @@ void hit(int lane){
 
 
 int main() {
+  // read the file before launching the game its just better
+  get_simfile_data("resources/delia.sm", notes);
+  sort(notes.begin(), notes.end(), comp);
+
   InitWindow(1920, 1080, "raylib vsrg test"); // my dumbass didnt change the title OOPSIE
   SearchAndSetResourceDir("resources");
   ToggleFullscreen();
   SetTargetFPS(250);
   InitAudioDevice();
 
-  std::vector<int> rotations;
-  rotations = std::vector<int>{90, 0, 180, -90};
+  vector<int> rotations;
+  rotations = vector<int>{90, 0, 180, -90};
   Texture2D textures[NUM_TEXTURES] = {0};
-  Texture2D textures_arrow[NUM_TEXTURES] = {0};
+  Texture2D textures_arrow[SNAP_ARROWS][NUM_TEXTURES] = {0};
+
+  for (int i { 0 }; i < SNAP_ARROWS; i++){
+    string filename = format("snapped_arrows/0{}.png", i);
+    for (int i2 { 0 }; i2 < NUM_TEXTURES; i2++){
+      Image arrow = LoadImage(filename.c_str());
+      ImageRotate(&arrow, rotations[i2]);
+      textures_arrow[i][i2] = LoadTextureFromImage(arrow);
+      UnloadImage(arrow);
+    }
+  }
   
   for (int i { 0 }; i < NUM_TEXTURES; i++) {
-    Image arrow = LoadImage("snapped_arrows/00.png");
+    // yay edit the snapped arrow loading logic ffs
     Image receptor_unlit = LoadImage("receptor_unlit.png");
     Image receptor_lit = LoadImage("receptor_lit.png");
     ImageRotate(&receptor_unlit, rotations[i]);
     ImageRotate(&receptor_lit, rotations[i]);
-    ImageRotate(&arrow, rotations[i]);
     textures[i] = LoadTextureFromImage(receptor_unlit);
-    textures_arrow[i] = LoadTextureFromImage(arrow);
     textures_arrows_lit[i] = LoadTextureFromImage(receptor_lit);
-    UnloadImage(arrow);
     UnloadImage(receptor_lit);
     UnloadImage(receptor_unlit);
   }
@@ -158,19 +164,8 @@ int main() {
     UnloadImage(judgement_images[i]);
   }
 
-  for (int i{0}; i <= 10; i++) {
-    note_custom new_note;
-    new_note.time = rand() % 3000 + 3000;
-    new_note.lane = rand() % 4;
-    new_note.y = 0;
-    new_note.hit = false;
-    notes.push_back(new_note);
-  }
-
-  std::sort(notes.begin(), notes.end(), comp);
-
   song = LoadMusicStream("delia.ogg");
-  std::cout << IsMusicValid(song);
+  cout << IsMusicValid(song);
   PlayMusicStream(song);
 
   while (!WindowShouldClose()) {
@@ -194,9 +189,15 @@ int main() {
       if (current_note.hit == false) {
         current_note.y = GetCmodY(current_note);
         if(current_note.y > -100 && current_note.y < 1080) {
-          DrawTexture(textures_arrow[current_note.lane],
+          DrawTexture(textures_arrow[current_note.snap % SNAP_ARROWS][current_note.lane],
                     500 + (128 * current_note.lane), current_note.y, WHITE);
           }
+      }
+
+      if (useautoplay == true){
+        if(timediffrence <= timings[0] && timediffrence >= timings[0]*-1){
+          hit(current_note.lane);
+        }
       }
 
       if (timediffrence >= timings[4] && current_note.hit == false) {
@@ -212,6 +213,14 @@ int main() {
         timediffrence = 0;
       }
     }
+
+    if (useautoplay == true){
+      DrawText("Autoplay enabled", 1280, 500, 24, RED);
+    }
+    // add drawing for artist, song name, stepper
+    string test2 = format("Time remaining: {} / {}", GetMusicTimeLength(song), GetMusicTimePlayed(song));
+    DrawText(test2.c_str(), 1100, 750, 28, WHITE);
+
 
     if (last_judge_time != 0 && (last_judge_time +100) >= GetMusicTimePlayed(song)*1000){
       DrawTexture(judgement_texture[last_hit_type], receptor_x, 300, WHITE);
@@ -247,8 +256,12 @@ int main() {
 
   for (int i = 0; i < NUM_TEXTURES; i++)
     UnloadTexture(textures[i]);
-  for (int i = 0; i < NUM_TEXTURES; i++)
-    UnloadTexture(textures_arrow[i]);
+
+  for (int i = 0; i < SNAP_ARROWS; i++){
+    for (int i2 = 0; i2 < NUM_TEXTURES; i2++)
+      UnloadTexture(textures_arrow[i2][i]);
+  }
+  
   for (int i = 0; i < NUM_TEXTURES; i++)
     UnloadTexture(textures_arrows_lit[i]);
   for (int i = 0; i < NUM_TEXTURES; i++)
