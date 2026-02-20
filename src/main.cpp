@@ -1,19 +1,13 @@
+#pragma GCC optimize("Ofast")
+
 #include "raylib.h"
 #include "resource_dir.h"
 #include <algorithm>
-#include <iostream>
-#include <ostream>
 #include <vector>
 #include "smloader.h"
 #include "tracy/Tracy.hpp"
 
-#define TRACY_ENABLE
-
-
 using namespace std;
-
-// big to do: call the clock less bcuz this is just eating performance probably LMFAO
-// fixed the typo lmfao
 
 #define NUM_TEXTURES 4
 #define scrollspeed 1
@@ -24,17 +18,18 @@ using namespace std;
 
 Music song;
 
+float g_fVisualDelaySeconds {0};
+float musicrate {1};
+float ARROW_SPACING {64};
+float m_fScrollBPM {1255};
+float m_fTimeSpacing {1};
+
 float GetCmodY(note_custom& current_note, float current_time){ // this is stolen from etterna (i jsut changed func name and some variables alright LOL)
-		float m_fScrollBPM {1255};
-    float m_fTimeSpacing {1};
-		float ARROW_SPACING {64};
-		float g_fVisualDelaySeconds {0};
     float fYOffset{0};
-		float musicrate {1};
     //float scale{1}; // scale of the receptors
 
-		float fPositionSeconds = current_time;
-		float m_fMusicSecondsVisible = fPositionSeconds - (g_fVisualDelaySeconds * musicrate);
+		//float fPositionSeconds = current_time;
+		float m_fMusicSecondsVisible = current_time - (g_fVisualDelaySeconds * musicrate);
 
 		float fSongSeconds = m_fMusicSecondsVisible;
     float fNoteSeconds = current_note.time/1000.f;
@@ -45,10 +40,6 @@ float GetCmodY(note_custom& current_note, float current_time){ // this is stolen
 
 		fYOffset += fYOffsetTimeSpacing * m_fTimeSpacing;
 		fYOffset *= ARROW_SPACING;
-
-		if (fYOffset < 0) {
-			return ((fYOffset *= scrollspeed)- receptor_y) *-1;
-		}
 
 		return ((fYOffset *= scrollspeed)- receptor_y) *-1;
 }
@@ -79,6 +70,7 @@ int combo;
 bool comp(note_custom a, note_custom b) { return a.time < b.time; }
 
 void set_hit(note_custom& current_note, int hit_type, float current_time){
+    ZoneScoped;
     cur_judgements[hit_type] += 1;
     current_note.hit = true;
     future_note++;
@@ -87,6 +79,7 @@ void set_hit(note_custom& current_note, int hit_type, float current_time){
 }
 
 void hit(int lane, float currenttime){
+  ZoneScoped;
   for (int i{future_note}; i < notes.size(); i++) {
       note_custom &current_note = notes[i];
       float current_time = currenttime;
@@ -142,7 +135,7 @@ int main() {
   InitWindow(1920, 1080, "raylib vsrg test"); // my dumbass didnt change the title OOPSIE
   SearchAndSetResourceDir("resources");
   ToggleFullscreen();
-  SetTargetFPS(250);
+  SetTargetFPS(1000);
   InitAudioDevice();
 
   vector<int> rotations;
@@ -186,10 +179,10 @@ int main() {
     UnloadImage(judgement_images[i]);
   }
   song = LoadMusicStream(music_path.c_str());
-  cout << IsMusicValid(song) << std::endl;
   PlayMusicStream(song);
 
   while (!WindowShouldClose()) {
+    FrameMark;
     BeginDrawing();
     ClearBackground(BLACK);
 
@@ -202,9 +195,7 @@ int main() {
     double currentTime = GetMusicTimePlayed(song)*1000;    
 
     for (int i{future_note}; i < notes.size(); i++) {
-      currentTime = currentTime;
       note_custom &current_note = notes[i];
-      double noteDuration = current_note.time - currentTime;
       double timediffrence = (current_note.time - currentTime) * -1;
 
       if (((currentTime - current_note.time) *-1) >= 3000){
@@ -231,12 +222,7 @@ int main() {
         cur_judgements[4] += 1;
         last_judge_time = currentTime;
         last_hit_type = 4;
-        timediffrence = 0;
-      }
-
-      if (current_note.time <= currentTime){
-        timediffrence = 0;
-      }      
+      }  
     }
 
     if (useautoplay == true){
@@ -263,20 +249,19 @@ int main() {
     UpdateMusicStream(song);
     EndDrawing();
 
-    if (IsKeyPressed(KEY_D)) {
-        
+      if (IsKeyPressed(KEY_D)) {
         hit(0, currentTime);
       }
-      if (IsKeyPressed(KEY_F)) {
+      else if (IsKeyPressed(KEY_F)) {
         hit(1, currentTime);
       }
-      if (IsKeyPressed(KEY_J)) {
+      else if (IsKeyPressed(KEY_J)) {
         hit(2, currentTime);
       }
-      if (IsKeyPressed(KEY_K)) {
+      else if (IsKeyPressed(KEY_K)) {
         hit(3, currentTime);
       }
-      float total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
+      int total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
       if (total_hits > 0){
         accuracy = (305*cur_judgements[0] + 300*cur_judgements[1] + 200*cur_judgements[2] + 50*cur_judgements[3]) / (305*total_hits) *100;
       } else {
@@ -285,19 +270,19 @@ int main() {
       DrawText(TextFormat("%.2f", accuracy), receptor_x, 10, 18, RED);
   }
 
-  for (int i = 0; i < NUM_TEXTURES; i++)
+  for (int i = 0; i < NUM_TEXTURES; i++){
     UnloadTexture(textures[i]);
-
-  for (int i = 0; i < SNAP_ARROWS; i++){
-    for (int i2 = 0; i2 < NUM_TEXTURES; i2++)
-      UnloadTexture(textures_arrow[i2][i]);
   }
-  
-  for (int i = 0; i < NUM_TEXTURES; i++)
-    UnloadTexture(textures_arrows_lit[i]);
-  for (int i = 0; i < NUM_TEXTURES; i++)
-    UnloadTexture(judgement_texture[i]);
-
+  for (int i = 0; i < SNAP_ARROWS; i++){
+      for (int i2 = 0; i2 < NUM_TEXTURES; i2++)
+          UnloadTexture(textures_arrow[i][i2]);
+  }
+  for (int i = 0; i < NUM_TEXTURES; i++){
+      UnloadTexture(textures_arrows_lit[i]);
+  }
+  for (int i = 0; i < 5; i++){
+      UnloadTexture(judgement_texture[i]);
+  }
   UnloadMusicStream(song);
   CloseAudioDevice();
 

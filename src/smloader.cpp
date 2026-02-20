@@ -1,3 +1,5 @@
+#pragma GCC optimize("Ofast")
+
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -107,7 +109,6 @@ void get_simfile_data(std::string path, std::vector<note_custom>& notes, string 
             notes_section += 1; 
 
             if (correct_difficulty == true && correct_meter == true){
-                std::cout << "found a valid file";
                 should_read_notedata = true;
             }
         }
@@ -153,9 +154,7 @@ void get_simfile_data(std::string path, std::vector<note_custom>& notes, string 
             beatcount += 1;
             total_snaps = 0;
             snap_lines.clear();
-        }
-        //cout << "END OFFSET: " << current_offset << std::endl;
-        
+        }   
     }
     f.close();
 }
