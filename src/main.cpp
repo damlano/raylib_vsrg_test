@@ -5,6 +5,10 @@
 #include <ostream>
 #include <vector>
 #include "smloader.h"
+#include "tracy/Tracy.hpp"
+
+#define TRACY_ENABLE
+
 
 using namespace std;
 
@@ -20,7 +24,7 @@ using namespace std;
 
 Music song;
 
-float GetCmodY(note_custom& current_note){ // this is stolen from etterna (i jsut changed func name and some variables alright LOL)
+float GetCmodY(note_custom& current_note, float current_time){ // this is stolen from etterna (i jsut changed func name and some variables alright LOL)
 		float m_fScrollBPM {1255};
     float m_fTimeSpacing {1};
 		float ARROW_SPACING {64};
@@ -29,7 +33,7 @@ float GetCmodY(note_custom& current_note){ // this is stolen from etterna (i jsu
 		float musicrate {1};
     //float scale{1}; // scale of the receptors
 
-		float fPositionSeconds = GetMusicTimePlayed(song);
+		float fPositionSeconds = current_time;
 		float m_fMusicSecondsVisible = fPositionSeconds - (g_fVisualDelaySeconds * musicrate);
 
 		float fSongSeconds = m_fMusicSecondsVisible;
@@ -62,6 +66,7 @@ int last_judge_time{ 0 };
 int last_hit_type{0};
 int last_key_hit_time {0};
 int last_key_hit_lane {0};
+vector<vector<int>> hit_down;
 Texture2D textures_arrows_lit[NUM_TEXTURES] = {0};
 
 Texture2D judgement_texture[5] = { 0 };
@@ -73,43 +78,49 @@ int combo;
 
 bool comp(note_custom a, note_custom b) { return a.time < b.time; }
 
-void set_hit(note_custom& current_note, int hit_type){
+void set_hit(note_custom& current_note, int hit_type, float current_time){
     cur_judgements[hit_type] += 1;
     current_note.hit = true;
     future_note++;
-    last_judge_time = GetMusicTimePlayed(song)*1000;
+    last_judge_time = current_time;
     last_hit_type = hit_type;
 }
 
-void hit(int lane){
+void hit(int lane, float currenttime){
   for (int i{future_note}; i < notes.size(); i++) {
       note_custom &current_note = notes[i];
-      double timediffrence = (current_note.time - (GetMusicTimePlayed(song) * 1000)) * -1;
-      last_key_hit_time = GetMusicTimePlayed(song)*1000;
+      float current_time = currenttime;
+      double timediffrence = (current_note.time - (current_time)) * -1;
+      
+      last_key_hit_time = current_time;
       last_key_hit_lane = lane;
+
+      //vector<vector<int>> current_hit_down;
+      //current_hit_down.push_back(lane, )
+
       if (current_note.lane == lane){
         if (timediffrence <= timings[0] && timediffrence >= timings[0]*-1){
-            set_hit(current_note, 0);
+            set_hit(current_note, 0, current_time);
             combo += 1;
             break;
         }
         else if (timediffrence <= timings[1] && timediffrence >= timings[1]*-1){
-            set_hit(current_note, 1);
+            set_hit(current_note, 1, current_time);
             combo += 1;
             break;
         }
         else if (timediffrence <= timings[2] && timediffrence >= timings[2]*-1){
-            set_hit(current_note, 2);
+            set_hit(current_note, 2, current_time);
             combo += 1;
             break;
         }
         else if (timediffrence <= timings[3] && timediffrence >= timings[3]*-1){
-            set_hit(current_note, 3);
+            set_hit(current_note, 3, current_time);
             combo = 0;
             break;
         }
         else if (timediffrence <= timings[4] && timediffrence >= timings[4]*-1){
-            set_hit(current_note, 4);
+            set_hit(current_note, 4, current_time);
             combo = 0;
             break;
         }
@@ -191,13 +202,17 @@ int main() {
     double currentTime = GetMusicTimePlayed(song)*1000;    
 
     for (int i{future_note}; i < notes.size(); i++) {
-      currentTime = GetMusicTimePlayed(song)*1000;
+      currentTime = currentTime;
       note_custom &current_note = notes[i];
       double noteDuration = current_note.time - currentTime;
       double timediffrence = (current_note.time - currentTime) * -1;
 
+      if (((currentTime - current_note.time) *-1) >= 3000){
+        break;
+      }
+
       if (current_note.hit == false) {
-        current_note.y = GetCmodY(current_note);
+        current_note.y = GetCmodY(current_note, currentTime/1000);
         if(current_note.y > -100 && current_note.y < 1080) {
           DrawTexture(textures_arrow[current_note.snap % SNAP_ARROWS][current_note.lane],
                     receptor_x + (128 * current_note.lane), current_note.y, WHITE);
@@ -206,7 +221,7 @@ int main() {
 
       if (useautoplay == true){
         if(timediffrence <= timings[0] && timediffrence >= timings[0]*-1){
-          hit(current_note.lane);
+          hit(current_note.lane, currentTime);
         }
       }
 
@@ -221,7 +236,7 @@ int main() {
 
       if (current_note.time <= currentTime){
         timediffrence = 0;
-      }
+      }      
     }
 
     if (useautoplay == true){
@@ -237,29 +252,29 @@ int main() {
     string test2 = format("Time remaining: {} / {}", GetMusicTimeLength(song), GetMusicTimePlayed(song));
     DrawText(test2.c_str(), 1300, 750, 24, WHITE);
 
-
-    if (last_judge_time != 0 && (last_judge_time +100) >= GetMusicTimePlayed(song)*1000){
+    if (last_judge_time != 0 && (last_judge_time +250) >= currentTime){
       DrawTexture(judgement_texture[last_hit_type], receptor_x, 300, WHITE);
     }
     
-    if (last_key_hit_time != 0 && (last_key_hit_time +100) >= GetMusicTimePlayed(song)*1000){
+    if (last_key_hit_time != 0 && (last_key_hit_time +100) >= currentTime){
         DrawTexture(textures_arrows_lit[last_key_hit_lane], receptor_x + (128*last_key_hit_lane), receptor_y, WHITE);
     }
+
     UpdateMusicStream(song);
     EndDrawing();
 
     if (IsKeyPressed(KEY_D)) {
         
-        hit(0);
+        hit(0, currentTime);
       }
       if (IsKeyPressed(KEY_F)) {
-        hit(1);
+        hit(1, currentTime);
       }
       if (IsKeyPressed(KEY_J)) {
-        hit(2);
+        hit(2, currentTime);
       }
       if (IsKeyPressed(KEY_K)) {
-        hit(3);
+        hit(3, currentTime);
       }
       float total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
       if (total_hits > 0){

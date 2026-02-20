@@ -1,6 +1,9 @@
 -- Export Compile Commands module for clangd support
 require "ecc/ecc"
 
+-- Get the absolute path of the directory containing this script
+local root = _MAIN_SCRIPT_DIR
+
 newoption
 {
     trigger = "graphics",
@@ -67,13 +70,23 @@ function check_raylib()
     os.chdir("../")
 end
 
+function check_tracy()
+    os.chdir("external")
+    if(os.isdir("tracy") == false) then
+        print("Tracy not found, cloning from github")
+        os.execute("git clone https://github.com/wolfpld/tracy.git tracy")
+    end
+    os.chdir("../")
+end
+
 function build_externals()
      print("calling externals")
      check_raylib()
+     check_tracy()
 end
 
 function platform_defines()
-     filter {"options:backend=glfw"}
+    filter {"options:backend=glfw"}
         defines{"PLATFORM_DESKTOP"}
 
     filter {"options:backend=rgfw"}
@@ -115,16 +128,13 @@ function platform_defines()
     filter {}
 end
 
--- if you don't want to download raylib, then set this to false, and set the raylib dir to where you want raylib to be pulled from, must be full sources.
+-- Settings
 downloadRaylib = true
 raylib_dir = "external/raylib-master"
 
 workspaceName = 'MyGame'
 baseName = path.getbasename(path.getdirectory(os.getcwd()));
-
---if (baseName ~= 'raylib-quickstart') then
-    workspaceName = baseName
---end
+workspaceName = baseName
 
 if (os.isdir('build_files') == false) then
     os.mkdir('build_files')
@@ -135,14 +145,13 @@ if (os.isdir('external') == false) then
 end
 
 workspace (workspaceName)
-    location "../"
+    location "build_files" -- Kept inside for clean root
     configurations { "Debug", "Release"}
     platforms { "x64", "x86", "ARM64"}
-
     defaultplatform ("x64")
 
     filter "configurations:Debug"
-        defines { "DEBUG" }
+        defines { "DEBUG", "TRACY_ENABLE" }
         symbols "On"
 
     filter "configurations:Release"
@@ -157,150 +166,185 @@ workspace (workspaceName)
 
     filter { "platforms:ARM64" }
         architecture "ARM64"
-
     filter {}
 
     targetdir "bin/%{cfg.buildcfg}/"
 
 if (downloadRaylib) then
     build_externals()
-    end
+end
 
-    startproject(workspaceName)
+startproject(workspaceName)
 
-    project (workspaceName)
-        kind "ConsoleApp"
-        location "build_files/"
-        targetdir "../bin/%{cfg.buildcfg}"
-
-        filter {"system:windows", "configurations:Release", "action:gmake*"}
-            kind "WindowedApp"
-            buildoptions { "-Wl,--subsystem,windows" }
-
-        filter {"system:windows", "configurations:Release", "action:vs*"}
-            kind "WindowedApp"
-            entrypoint "mainCRTStartup"
-
-        filter "action:vs*"
-            debugdir "$(SolutionDir)"
-
-        filter {"action:gmake*"} -- Uncoment if you need to force StaticLib
---          buildoptions { "-static" }
-        filter{}
-
-        vpaths 
-        {
-            ["Header Files/*"] = { "../include/**.h",  "../include/**.hpp", "../src/**.h", "../src/**.hpp"},
-            ["Source Files/*"] = {"../src/**.c", "src/**.cpp"},
-            ["Windows Resource Files/*"] = {"../src/**.rc", "../src/**.ico"},
-            ["Game Resource Files/*"] = {"../resources/**"},
-        }
-        
-        files {"../src/**.c", "../src/**.cpp", "../src/**.h", "../src/**.hpp", "../include/**.h", "../include/**.hpp"}
-        
-        filter {"system:windows", "action:vs*"}
-            files {"../src/*.rc", "../src/*.ico"}
-            files {"../resources/**"}
-
-        filter{}
-        
-        includedirs { "../src" }
-        includedirs { "../include" }
-
-        links {"raylib"}
-
-        cdialect "C17"
-        cppdialect "C++23"
-
-        includedirs {raylib_dir .. "/src" }
-
-        flags { "ShadowedVariables"}
-        platform_defines()
-
-        filter "action:vs*"
-            defines{"_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS"}
-            dependson {"raylib"}
-            links {"raylib.lib"}
-            characterset ("Unicode")
-            buildoptions { "/Zc:__cplusplus" }
-
-        filter "system:windows"
-            defines{"_WIN32"}
-            links {"winmm", "gdi32", "opengl32"}
-            libdirs {"../bin/%{cfg.buildcfg}"}
-
-        filter "system:linux"
-            links {"pthread", "m", "dl", "rt"}
-
-        filter {"system:linux", "options:wayland=off"}
-            links {"X11"}
-
-        filter {"system:linux", "options:wayland=on"}
-            links {"wayland-client", "wayland-cursor", "wayland-egl", "xkbcommon"}
-
-        filter "system:macosx"
-            links {"OpenGL.framework", "Cocoa.framework", "IOKit.framework", "CoreFoundation.framework", "CoreAudio.framework", "CoreVideo.framework", "AudioToolbox.framework"}
-
-        filter{}
-        
-
-    project "raylib"
-        kind "StaticLib"
+---
+-- Tracy Static Library
+---
+project "Tracy"
+    kind "StaticLib"
+    language "C++"
+    cppdialect "C++17"
+    location "build_files/"
+    targetdir "../bin/%{cfg.buildcfg}"
+    objdir "../bin/obj/%{prj.name}"
     
-        platform_defines()
+    files 
+    { 
+        root .. "/external/tracy/public/TracyClient.cpp"
+    }
+    
+    includedirs
+    {
+        root .. "/external/tracy/public"
+    }
+    
+    filter "system:windows"
+        defines { "WIN32_LEAN_AND_MEAN", "NOMINMAX" }
+        systemversion "latest"
+        
+    filter "system:linux"
+        links { "pthread", "dl", "rt" }
+        buildoptions { "-pthread" }
+        
+    filter "system:macosx"
+        links { "pthread", "dl" }
+        buildoptions { "-pthread" }
+    
+    filter "configurations:Debug"
+        defines { "TRACY_ENABLE" }
+        runtime "Debug"
+        symbols "On"
+        
+    filter "configurations:Release"
+        -- Tracy usually disabled in Release unless specifically requested
+        runtime "Release"
+        optimize "On"
+    filter {}
 
-        location "build_files/"
+---
+-- Main Application
+---
+project (workspaceName)
+    kind "ConsoleApp"
+    location "build_files/"
+    targetdir "../bin/%{cfg.buildcfg}"
 
-        language "C"
-        targetdir "../bin/%{cfg.buildcfg}"
+    filter {"system:windows", "configurations:Release", "action:gmake*"}
+        kind "WindowedApp"
+        buildoptions { "-Wl,--subsystem,windows" }
 
+    filter {"system:windows", "configurations:Release", "action:vs*"}
+        kind "WindowedApp"
+        entrypoint "mainCRTStartup"
 
-        filter {"options:wayland=on"}
-            defines {"GLFW_LINUX_ENABLE_WAYLAND=TRUE" }
+    filter "action:vs*"
+        debugdir "$(SolutionDir)"
+    filter{}
 
-        filter {"options:wayland=on", "system:linux"}
-            prebuildcommands {
-                "@echo Generating Wayland protocols...",
-                -- Core Wayland & Shell
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/wayland.xml ../" .. raylib_dir .. "/src/wayland-client-protocol.h",
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/xdg-shell.xml ../" .. raylib_dir .. "/src/xdg-shell-client-protocol.h",
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/xdg-decoration-unstable-v1.xml ../" .. raylib_dir .. "/src/xdg-decoration-unstable-v1-client-protocol.h",
+    vpaths 
+    {
+        ["Header Files/*"] = { "../include/**.h",  "../include/**.hpp", "../src/**.h", "../src/**.hpp"},
+        ["Source Files/*"] = {"../src/**.c", "src/**.cpp"},
+        ["Windows Resource Files/*"] = {"../src/**.rc", "../src/**.ico"},
+        ["Game Resource Files/*"] = {"../resources/**"},
+    }
+    
+    files {"../src/**.c", "../src/**.cpp", "../src/**.h", "../src/**.hpp", "../include/**.h", "../include/**.hpp"}
+    
+    filter {"system:windows", "action:vs*"}
+        files {"../src/*.rc", "../src/*.ico"}
+        files {"../resources/**"}
+    filter{}
+    
+    includedirs { 
+        "../src", 
+        "../include",
+        root .. "/external/tracy/public",
+        root .. "/" .. raylib_dir .. "/src"
+    }
 
-                -- Viewporter
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/viewporter.xml ../" .. raylib_dir .. "/src/viewporter-client-protocol.h",
+    links {"raylib", "Tracy"}
 
-                -- Relative Pointer
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/relative-pointer-unstable-v1.xml ../" .. raylib_dir .. "/src/relative-pointer-unstable-v1-client-protocol.h",
-                -- Pointer Constraints
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/pointer-constraints-unstable-v1.xml ../" .. raylib_dir .. "/src/pointer-constraints-unstable-v1-client-protocol.h",
+    cdialect "C17"
+    cppdialect "C++23"
 
-                -- Fractional Scale
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/fractional-scale-v1.xml ../" .. raylib_dir .. "/src/fractional-scale-v1-client-protocol.h",
+    flags { "ShadowedVariables"}
+    platform_defines()
 
-                -- XDG Activation
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/xdg-activation-v1.xml ../" .. raylib_dir .. "/src/xdg-activation-v1-client-protocol.h",
-                -- Idle Inhibit
-                "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/idle-inhibit-unstable-v1.xml ../" .. raylib_dir .. "/src/idle-inhibit-unstable-v1-client-protocol.h",
-            }
-        filter {}
+    filter "action:vs*"
+        defines{"_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS"}
+        dependson {"raylib", "Tracy"}
+        links {"raylib.lib", "Tracy.lib"}
+        characterset ("Unicode")
+        buildoptions { "/Zc:__cplusplus" }
+        
+    filter "system:windows"
+        defines{"_WIN32"}
+        links {"winmm", "gdi32", "opengl32"}
+        libdirs {"../bin/%{cfg.buildcfg}"}
 
-        filter "action:vs*"
-            defines{"_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS"}
-            characterset ("Unicode")
-            buildoptions { "/Zc:__cplusplus" }
-        filter{}
+    filter "system:linux"
+        links {"pthread", "m", "dl", "rt"}
+        buildoptions { "-pthread" }
+        libdirs {"../bin/%{cfg.buildcfg}"}
 
-        includedirs {raylib_dir .. "/src", raylib_dir .. "/src/external/glfw/include" }
-        vpaths
-        {
-            ["Header Files"] = { raylib_dir .. "/src/**.h"},
-            ["Source Files/*"] = { raylib_dir .. "/src/**.c"},
+    filter {"system:linux", "options:wayland=off"}
+        links {"X11"}
+
+    filter {"system:linux", "options:wayland=on"}
+        links {"wayland-client", "wayland-cursor", "wayland-egl", "xkbcommon"}
+
+    filter "system:macosx"
+        links {"OpenGL.framework", "Cocoa.framework", "IOKit.framework", "CoreFoundation.framework", "CoreAudio.framework", "CoreVideo.framework", "AudioToolbox.framework"}
+        buildoptions { "-pthread" }
+        libdirs {"../bin/%{cfg.buildcfg}"}
+    filter{}
+
+---
+-- Raylib Static Library
+---
+project "raylib"
+    kind "StaticLib"
+    platform_defines()
+    location "build_files/"
+    language "C"
+    targetdir "../bin/%{cfg.buildcfg}"
+
+    filter {"options:wayland=on"}
+        defines {"GLFW_LINUX_ENABLE_WAYLAND=TRUE" }
+
+    filter {"options:wayland=on", "system:linux"}
+        prebuildcommands {
+            "@echo Generating Wayland protocols...",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/wayland.xml ../" .. raylib_dir .. "/src/wayland-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/xdg-shell.xml ../" .. raylib_dir .. "/src/xdg-shell-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/xdg-decoration-unstable-v1.xml ../" .. raylib_dir .. "/src/xdg-decoration-unstable-v1-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/viewporter.xml ../" .. raylib_dir .. "/src/viewporter-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/relative-pointer-unstable-v1.xml ../" .. raylib_dir .. "/src/relative-pointer-unstable-v1-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/pointer-constraints-unstable-v1.xml ../" .. raylib_dir .. "/src/pointer-constraints-unstable-v1-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/fractional-scale-v1.xml ../" .. raylib_dir .. "/src/fractional-scale-v1-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/xdg-activation-v1.xml ../" .. raylib_dir .. "/src/xdg-activation-v1-client-protocol.h",
+            "@wayland-scanner client-header ../" .. raylib_dir .. "/src/external/glfw/deps/wayland/idle-inhibit-unstable-v1.xml ../" .. raylib_dir .. "/src/idle-inhibit-unstable-v1-client-protocol.h",
         }
-        files {raylib_dir .. "/src/*.h", raylib_dir .. "/src/*.c"}
+    filter {}
 
-        removefiles {raylib_dir .. "/src/rcore_*.c"}
+    filter "action:vs*"
+        defines{"_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS"}
+        characterset ("Unicode")
+        buildoptions { "/Zc:__cplusplus" }
+    filter{}
 
-        filter { "system:macosx", "files:" .. raylib_dir .. "/src/rglfw.c" }
-            compileas "Objective-C"
+    includedirs { root .. "/" .. raylib_dir .. "/src", root .. "/" .. raylib_dir .. "/src/external/glfw/include" }
+    
+    vpaths
+    {
+        ["Header Files"] = { root .. "/" .. raylib_dir .. "/src/**.h"},
+        ["Source Files/*"] = { root .. "/" .. raylib_dir .. "/src/**.c"},
+    }
+    
+    files { root .. "/" .. raylib_dir .. "/src/*.h", root .. "/" .. raylib_dir .. "/src/*.c"}
 
-        filter{}
+    removefiles { root .. "/" .. raylib_dir .. "/src/rcore_*.c"}
+
+    filter { "system:macosx", "files:" .. root .. "/" .. raylib_dir .. "/src/rglfw.c" }
+        compileas "Objective-C"
+    filter{}
