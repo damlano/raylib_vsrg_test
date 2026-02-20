@@ -1,5 +1,4 @@
 #include <iostream>
-#include <ostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -19,7 +18,7 @@ struct note_custom {
   int snap;
 };
 
-void get_simfile_data(std::string path, std::vector<note_custom>& notes){
+void get_simfile_data(std::string path, std::vector<note_custom>& notes, string selected_difficulty, int selected_meter, string & music_path, string & artist, string & song_title, string & subtitle){
     map<int, float> bpms;
     int beatcount = 0;
     int notes_section = -1; // -1 is not yet reached notes section 0 is its on and 6 means its done with the entire notes section
@@ -28,6 +27,9 @@ void get_simfile_data(std::string path, std::vector<note_custom>& notes){
     float current_offset = 0;
     std::vector<std::string> snap_lines;
     ifstream f(path);
+    bool should_read_notedata {false};
+    bool correct_difficulty {false};
+    bool correct_meter {false};
 
     if (!f.is_open()) {
         cerr << "Error opening the file!";
@@ -36,6 +38,32 @@ void get_simfile_data(std::string path, std::vector<note_custom>& notes){
     string t;
 
     while (getline(f, s)){
+        s.erase(std::remove(s.begin(), s.end(), '\r'), s.end());
+        s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
+        if (s.starts_with("#MUSIC:")){
+            s.erase(s.begin(),s.begin()+7);
+            s.erase(std::remove(s.begin(), s.end(), ';'), s.end());
+            music_path = s;
+        }
+
+        if (s.starts_with("#ARTIST:")){
+            s.erase(s.begin(),s.begin()+8);
+            s.erase(std::remove(s.begin(), s.end(), ';'), s.end());
+            artist = s;
+        }
+
+        if (s.starts_with("#TITLE:")){
+            s.erase(s.begin(),s.begin()+7);
+            s.erase(std::remove(s.begin(), s.end(), ';'), s.end());
+            song_title = s;
+        }
+
+        if (s.starts_with("#SUBTITLE:")){
+            s.erase(s.begin(),s.begin()+10);
+            s.erase(std::remove(s.begin(), s.end(), ';'), s.end());
+            subtitle = s;
+        }
+
         if (s.starts_with("#BPMS")){
             char chars[] = "#BPMS:;";
 
@@ -57,15 +85,45 @@ void get_simfile_data(std::string path, std::vector<note_custom>& notes){
                 }
             }
         }
-        if (notes_section >=0 && notes_section <= 5) { notes_section += 1; }
-        if (s.starts_with("#NOTES")){ notes_section=0; }
+        if (notes_section >=0 && notes_section <= 5) { 
+            s.erase(std::remove(s.begin(), s.end(), ':'), s.end());
+            s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
+            if (notes_section == 1){
+                // to do: add it so that only dance-single cna be selected
+            }
 
-        if (notes_section == 6 && !s.starts_with(",")){
+            if (notes_section == 2){
+                if (selected_difficulty == s){
+                    correct_difficulty = true;
+                }
+            }
+
+            if (notes_section == 3){
+                if (std::to_string(selected_meter) == s){
+                    correct_meter = true;
+                }
+            }
+            
+            notes_section += 1; 
+
+            if (correct_difficulty == true && correct_meter == true){
+                std::cout << "found a valid file";
+                should_read_notedata = true;
+            }
+        }
+
+        if (s.starts_with("#NOTES")){ 
+            notes_section=0;
+            correct_difficulty = false;
+            correct_meter = false;
+        }
+
+        if (should_read_notedata == true && notes_section == 6 && !s.starts_with(",")){
             total_snaps += 1;
             snap_lines.push_back(s);
         }
 
-        if (notes_section == 6 && s.starts_with(",")|| s.starts_with(";")){
+        if (should_read_notedata == true && notes_section == 6 && s.starts_with(",")|| should_read_notedata == true && notes_section == 6 && s.starts_with(";")){
             auto it = bpms.find(beatcount);
             if (it != bpms.end()){
                 current_bpm = it->second;
@@ -96,7 +154,7 @@ void get_simfile_data(std::string path, std::vector<note_custom>& notes){
             total_snaps = 0;
             snap_lines.clear();
         }
-        cout << "END OFFSET: " << current_offset << std::endl;
+        //cout << "END OFFSET: " << current_offset << std::endl;
         
     }
     f.close();

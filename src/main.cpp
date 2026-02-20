@@ -8,14 +8,15 @@
 
 using namespace std;
 
-// big to do: clal the clock less bcuz this is just eating performance probably LMFAO
+// big to do: call the clock less bcuz this is just eating performance probably LMFAO
+// fixed the typo lmfao
 
 #define NUM_TEXTURES 4
 #define scrollspeed 1
 #define receptor_y 950
-#define receptor_x 500
+#define receptor_x 700
 #define SNAP_ARROWS 9
-#define useautoplay false
+#define useautoplay true
 
 Music song;
 
@@ -67,6 +68,7 @@ Texture2D judgement_texture[5] = { 0 };
 int timings[5] {17, 200, 300, 400,600};
 int cur_judgements[5] {0,0,0,0,0};
 double accuracy {0};
+int combo;
 // from left to right: marv/perf/great/boo/miss
 
 bool comp(note_custom a, note_custom b) { return a.time < b.time; }
@@ -88,22 +90,27 @@ void hit(int lane){
       if (current_note.lane == lane){
         if (timediffrence <= timings[0] && timediffrence >= timings[0]*-1){
             set_hit(current_note, 0);
+            combo += 1;
             break;
         }
         else if (timediffrence <= timings[1] && timediffrence >= timings[1]*-1){
             set_hit(current_note, 1);
+            combo += 1;
             break;
         }
         else if (timediffrence <= timings[2] && timediffrence >= timings[2]*-1){
             set_hit(current_note, 2);
+            combo += 1;
             break;
         }
         else if (timediffrence <= timings[3] && timediffrence >= timings[3]*-1){
             set_hit(current_note, 3);
+            combo = 0;
             break;
         }
         else if (timediffrence <= timings[4] && timediffrence >= timings[4]*-1){
             set_hit(current_note, 4);
+            combo = 0;
             break;
         }
         break;
@@ -114,7 +121,11 @@ void hit(int lane){
 
 int main() {
   // read the file before launching the game its just better
-  get_simfile_data("resources/delia.sm", notes);
+  string music_path;
+  string song_title;
+  string subtitle;
+  string artist;
+  get_simfile_data("resources/10 Aim Burst.sm", notes,"Challenge" ,10,music_path, artist, song_title, subtitle);
   sort(notes.begin(), notes.end(), comp);
 
   InitWindow(1920, 1080, "raylib vsrg test"); // my dumbass didnt change the title OOPSIE
@@ -163,9 +174,8 @@ int main() {
     judgement_texture[i] = LoadTextureFromImage(judgement_images[i]);
     UnloadImage(judgement_images[i]);
   }
-
-  song = LoadMusicStream("delia.ogg");
-  cout << IsMusicValid(song);
+  song = LoadMusicStream(music_path.c_str());
+  cout << IsMusicValid(song) << std::endl;
   PlayMusicStream(song);
 
   while (!WindowShouldClose()) {
@@ -190,7 +200,7 @@ int main() {
         current_note.y = GetCmodY(current_note);
         if(current_note.y > -100 && current_note.y < 1080) {
           DrawTexture(textures_arrow[current_note.snap % SNAP_ARROWS][current_note.lane],
-                    500 + (128 * current_note.lane), current_note.y, WHITE);
+                    receptor_x + (128 * current_note.lane), current_note.y, WHITE);
           }
       }
 
@@ -215,11 +225,17 @@ int main() {
     }
 
     if (useautoplay == true){
-      DrawText("Autoplay enabled", 1280, 500, 24, RED);
+      DrawText("Autoplay enabled", 1400, 500, 24, RED);
     }
-    // add drawing for artist, song name, stepper
+ 
+    string step_info_text = format("Artist: {} Song: {} Stepper: {}",artist, song_title, subtitle);
+    DrawText(step_info_text.c_str(), 600, 100, 28, BLUE);
+
+    string combo_text = format("{}",combo);
+    DrawText(combo_text.c_str(), 950, 500, 28, RED);
+
     string test2 = format("Time remaining: {} / {}", GetMusicTimeLength(song), GetMusicTimePlayed(song));
-    DrawText(test2.c_str(), 1100, 750, 28, WHITE);
+    DrawText(test2.c_str(), 1300, 750, 24, WHITE);
 
 
     if (last_judge_time != 0 && (last_judge_time +100) >= GetMusicTimePlayed(song)*1000){
