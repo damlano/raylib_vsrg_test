@@ -14,7 +14,7 @@ using namespace std;
 #define receptor_y 950
 #define receptor_x 700
 #define SNAP_ARROWS 9
-#define useautoplay true
+#define useautoplay false
 
 Music song;
 
@@ -261,7 +261,7 @@ int main() {
       else if (IsKeyPressed(KEY_K)) {
         hit(3, currentTime);
       }
-      int total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
+      float total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
       if (total_hits > 0){
         accuracy = (305*cur_judgements[0] + 300*cur_judgements[1] + 200*cur_judgements[2] + 50*cur_judgements[3]) / (305*total_hits) *100;
       } else {
