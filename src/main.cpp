@@ -15,7 +15,6 @@ using namespace std;
 #define receptor_x 700
 #define SNAP_ARROWS 9
 #define useautoplay true
-#define scrolldirection -1
 Music song;
 
 float g_fVisualDelaySeconds {0};
@@ -43,12 +42,6 @@ float GetCmodY(note_custom& current_note, float current_time){ // this is stolen
 
 		return ((fYOffset *= scrollspeed)- receptor_y) *-1;
 }
-
-
-/*
-todo:
-make the *-1 a variable to allow both up and downscroll
-*/ 
 
 vector<note_custom> notes;
 int future_note{ 0 };
@@ -167,6 +160,7 @@ int main() {
     UnloadImage(judgement);
   }
   song = LoadMusicStream(music_path.c_str());
+  song.looping = false;
   PlayMusicStream(song);
   float song_length = GetMusicTimeLength(song);
   
