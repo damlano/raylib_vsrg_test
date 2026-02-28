@@ -14,14 +14,18 @@ using namespace std;
 #define receptor_y 950
 #define receptor_x 700
 #define SNAP_ARROWS 9
-#define useautoplay true
+#define useautoplay false
+#define scrolldirection -1
 Music song;
 
-float g_fVisualDelaySeconds {0};
-float musicrate {1};
-float ARROW_SPACING {64};
-float m_fScrollBPM {2000};
-float m_fTimeSpacing {1};
+// these can be floats
+constexpr int g_fVisualDelaySeconds {0};
+constexpr int musicrate {1};
+constexpr int ARROW_SPACING {64};
+constexpr int m_fScrollBPM {2000};
+constexpr int m_fTimeSpacing {1};
+
+int real_y;
 
 float GetCmodY(note_custom& current_note, float current_time){ // this is stolen from etterna (i jsut changed func name and some variables alright LOL)
     float fYOffset{0};
@@ -40,7 +44,11 @@ float GetCmodY(note_custom& current_note, float current_time){ // this is stolen
 		fYOffset += fYOffsetTimeSpacing * m_fTimeSpacing;
 		fYOffset *= ARROW_SPACING;
 
-		return ((fYOffset *= scrollspeed)- receptor_y) *-1;
+    if (scrolldirection == -1){
+      return ((fYOffset *= scrollspeed)- real_y) * scrolldirection;
+    }
+
+		return ((fYOffset *= scrollspeed)+ real_y) *scrolldirection; // + receptor Y if upscroll - if downscroll
 }
 
 vector<note_custom> notes;
@@ -54,12 +62,12 @@ Texture2D judgement_texture[5] = { 0 };
 int timings[5] {17, 200, 300, 400,600};
 int cur_judgements[5] {0,0,0,0,0};
 // from left to right: marv/perf/great/boo/miss
-double accuracy {0};
+float accuracy {0};
 int combo;
 
 bool comp(note_custom a, note_custom b) { return a.time < b.time; }
 
-void set_hit(note_custom& current_note, int hit_type, float current_time){
+void set_hit(note_custom& current_note, int hit_type, int current_time){
     ZoneScoped;
     cur_judgements[hit_type] += 1;
     current_note.hit = true;
@@ -68,7 +76,7 @@ void set_hit(note_custom& current_note, int hit_type, float current_time){
     last_judge_type = hit_type;
 }
 
-void hit(int lane, float currenttime){
+void hit(int lane, int currenttime){
   ZoneScoped;
   key_lighting current_keydown_light;
   current_keydown_light.lane = lane;
@@ -77,7 +85,7 @@ void hit(int lane, float currenttime){
 
 for (int i{future_note}; i < notes.size(); i++) {
     note_custom &current_note = notes[i];
-    if (current_note.lane != lane){
+    if (current_note.lane != lane)[[likely]]{
       continue;
     }
     double timediffrence = (current_note.time - (currenttime)) * -1;
@@ -125,6 +133,12 @@ int main() {
   SetTargetFPS(1000);
   InitAudioDevice();
 
+  if (scrolldirection == -1){
+    real_y = receptor_y;
+  } else {
+    real_y = GetScreenHeight() -receptor_y;
+  }
+
   vector<int> rotations;
   rotations = vector<int>{90, 0, 180, -90};
   Texture2D textures[NUM_TEXTURES] = {0};
@@ -162,16 +176,15 @@ int main() {
   song = LoadMusicStream(music_path.c_str());
   song.looping = false;
   PlayMusicStream(song);
-  float song_length = GetMusicTimeLength(song);
+  int song_length = GetMusicTimeLength(song);
   
-
   while (!WindowShouldClose()) {
     FrameMark;
     BeginDrawing();
     ClearBackground(BLACK);
 
     for (int i { 0 }; i < NUM_TEXTURES; i++) {
-      DrawTexture(textures[i], receptor_x + (128*i), receptor_y, GRAY);
+      DrawTexture(textures[i], receptor_x + (128*i), real_y, GRAY);
     }
 
     DrawFPS(10, 10);
@@ -182,22 +195,28 @@ int main() {
       note_custom &current_note = notes[i];
       double timediffrence = (current_note.time - currentTime) * -1;
 
-      if (current_note.hit == false) {
+      if (current_note.hit == false) [[likely]]{
         current_note.y = GetCmodY(current_note, currentTime/1000);
         DrawTexture(textures_arrow[current_note.snap % SNAP_ARROWS][current_note.lane],receptor_x + (128 * current_note.lane), current_note.y, WHITE);
       }
 
-      if (current_note.y <= -1150){
-        break;
+      if (scrolldirection == 1) {
+          if (current_note.y >= GetScreenHeight() + 100) {
+            break; 
+        }
+      } else { 
+          if (current_note.y <= -100) {
+            break;
+          }
       }
 
-      if (useautoplay == true){
-        if(timediffrence <= timings[0] && timediffrence >= timings[0]*-1){
+      if (useautoplay == true) [[likely]]{
+        if(timediffrence <= timings[0] && timediffrence >= timings[0]*-1) [[likely]]{
           hit(current_note.lane, currentTime);
         }
       }
 
-      if (timediffrence >= timings[4] && current_note.hit == false) {
+      if (timediffrence >= timings[4] && current_note.hit == false)[[unlikely]] {
         current_note.hit = true;
         future_note++;
         cur_judgements[4] += 1;
@@ -207,35 +226,32 @@ int main() {
       }  
     }
 
-    if (useautoplay == true){
+    if (useautoplay == true)[[likely]]{
       DrawText("Autoplay enabled", 1400, 500, 24, RED);
     }
     string combo_text = format("{}",combo);
-    string test2 = format("Time remaining: {:.0f} / {:.0f}", song_length, currentTime/1000);
+    string test2 = format("Time remaining: {} / {:.0f}", song_length, currentTime/1000);
 
     DrawText(combo_text.c_str(), 950, 500, 28, RED);
     DrawText(step_info_text.c_str(), 600, 100, 28, BLUE);
     DrawText(test2.c_str(), 1300, 750, 24, WHITE);
 
-    if (last_judge_time != 0 && (last_judge_time +250) >= currentTime){
+    if (last_judge_time != 0 && (last_judge_time +250) >= currentTime) [[likely]]{
       DrawTexture(judgement_texture[last_judge_type], receptor_x, 300, WHITE);
     }
 
     for (auto it = key_down_lighting.begin(); it != key_down_lighting.end(); )
     {
-        if ((it->time + 100) >= currentTime)
-        {
-            DrawTexture( textures_arrows_lit[it->lane], receptor_x + (128 * it->lane), receptor_y, WHITE);
+        if ((it->time + 100) >= currentTime) [[likely]]{
+            DrawTexture( textures_arrows_lit[it->lane], receptor_x + (128 * it->lane), real_y, WHITE);
             ++it;
-        }
-        else
-        {
+        } else {
             it = key_down_lighting.erase(it);
         }
     }
 
     float total_hits = cur_judgements[0]+cur_judgements[1]+cur_judgements[2]+cur_judgements[3]+cur_judgements[4];
-      if (total_hits > 0){
+      if (total_hits > 0) [[likely]]{
         accuracy = (305*cur_judgements[0] + 300*cur_judgements[1] + 200*cur_judgements[2] + 50*cur_judgements[3]) / (305*total_hits) *100;
       } else {
         accuracy= 100.0; 

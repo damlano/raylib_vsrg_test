@@ -48,6 +48,12 @@ void get_simfile_data(std::string path, std::vector<note_custom>& notes, string 
             music_path = s;
         }
 
+        if (s.starts_with("#OFFSET:")){
+            s.erase(s.begin(),s.begin()+8);
+            s.erase(std::remove(s.begin(), s.end(), ';'), s.end());
+            current_offset = stof(s.c_str())*1000;
+        }
+
         if (s.starts_with("#ARTIST:")){
             s.erase(s.begin(),s.begin()+8);
             s.erase(std::remove(s.begin(), s.end(), ';'), s.end());
