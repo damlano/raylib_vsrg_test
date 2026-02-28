@@ -42,9 +42,12 @@ Texture2D judgement_texture[5];
 Texture2D textures[NUM_TEXTURES];
 Texture2D textures_arrow[SNAP_ARROWS][NUM_TEXTURES];
 
-int main()
-{
-    const fs::path target_path{"/home/demi/windows_data/Etterna/Etterna-0.74.4-Linux/Etterna/Songs"};
+int main(int argc, char* argv[]){
+    if (argc <= 1){
+        std::cout << "Please provide a path to your songs folder";
+    }
+
+    const fs::path target_path{argv[1]};
     try {
         for (auto const& dir_entry : fs::directory_iterator{target_path})
         {
