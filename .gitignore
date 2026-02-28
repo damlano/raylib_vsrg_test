@@ -409,3 +409,6 @@ Makefile
 
 # add build folder
 build/
+./build.sh
+.vscode/
+.cache/

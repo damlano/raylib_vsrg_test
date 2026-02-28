@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.11)
 
 # Project name
 project(raylibvsrg)
-
+add_compile_options(-fpermissive)
 #set your c++ standard here
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,7 +28,6 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE
 )
-
 
 FetchContent_MakeAvailable(raylib tracy)
 message(STATUS "tracy source dir = ${tracy_SOURCE_DIR}")
